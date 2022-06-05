@@ -51,7 +51,8 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
     var viewSizeChangeFixedPixel: FixedPixel? = FixedPixel.CENTER
     private var orientationJustChanged = false
 
-    private var imageActionState: ImageActionState? = null
+    var imageActionState: ImageActionState? = null
+        private set
     private var userSpecifiedMinScale = 0f
     private var minScale = 0f
     private var maxScaleIsSetByMultiplier = false
