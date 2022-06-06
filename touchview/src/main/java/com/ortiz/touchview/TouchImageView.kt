@@ -844,13 +844,11 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
             }
             gestureDetector.onTouchEvent(event)
             val curr = PointF(event.x, event.y)
-            if (imageActionState == ImageActionState.NONE || imageActionState == ImageActionState.DRAG) {
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        last.set(curr)
-                        setState(ImageActionState.DRAG)
-                    }
-                    MotionEvent.ACTION_MOVE -> if (imageActionState == ImageActionState.DRAG) {
+
+            if (event.pointerCount >= 2) {
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_POINTER_DOWN -> last.set(curr)
+                    MotionEvent.ACTION_MOVE -> {
                         val deltaX = curr.x - last.x
                         val deltaY = curr.y - last.y
                         val fixTransX = getFixDragTrans(deltaX, viewWidth.toFloat(), imageWidth)
