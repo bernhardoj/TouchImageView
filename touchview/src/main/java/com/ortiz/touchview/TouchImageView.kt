@@ -68,7 +68,6 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
      *
      */
     var doubleTapScale = 0f
-    private var fling: Fling? = null
     private var orientation = 0
     private var touchScaleType: ScaleType? = null
     private var imageRenderedAtLeastOnce = false
@@ -805,14 +804,6 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
             performLongClick()
         }
 
-        override fun onFling(e1: MotionEvent?, e2: MotionEvent?, velocityX: Float, velocityY: Float): Boolean {
-            // If a previous fling is still active, it should be cancelled so that two flings
-            // are not run simultaneously.
-            fling?.cancelFling()
-            fling = Fling(velocityX.toInt(), velocityY.toInt()).also { compatPostOnAnimation(it) }
-            return super.onFling(e1, e2, velocityX, velocityY)
-        }
-
         override fun onDoubleTap(e: MotionEvent?): Boolean {
             var consumed = false
             if (e != null && isZoomEnabled) {
@@ -853,11 +844,10 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
             }
             gestureDetector.onTouchEvent(event)
             val curr = PointF(event.x, event.y)
-            if (imageActionState == ImageActionState.NONE || imageActionState == ImageActionState.DRAG || imageActionState == ImageActionState.FLING) {
+            if (imageActionState == ImageActionState.NONE || imageActionState == ImageActionState.DRAG) {
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
                         last.set(curr)
-                        fling?.cancelFling()
                         setState(ImageActionState.DRAG)
                     }
                     MotionEvent.ACTION_MOVE -> if (imageActionState == ImageActionState.DRAG) {
@@ -1079,82 +1069,8 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
         return PointF(finalX, finalY)
     }
 
-    /**
-     * Fling launches sequential runnables which apply
-     * the fling graphic to the image. The values for the translation
-     * are interpolated by the Scroller.
-     */
-    private inner class Fling(velocityX: Int, velocityY: Int) : Runnable {
-        var scroller: CompatScroller
-        var currX: Int
-        var currY: Int
-
-        init {
-            setState(ImageActionState.FLING)
-            scroller = CompatScroller(context)
-            touchMatrix.getValues(floatMatrix)
-            var startX = floatMatrix[Matrix.MTRANS_X].toInt()
-            val startY = floatMatrix[Matrix.MTRANS_Y].toInt()
-            val minX: Int
-            val maxX: Int
-            val minY: Int
-            val maxY: Int
-            if (isRotateImageToFitScreen && orientationMismatch(drawable)) {
-                startX -= imageWidth.toInt()
-            }
-            if (imageWidth > viewWidth) {
-                minX = viewWidth - imageWidth.toInt()
-                maxX = 0
-            } else {
-                maxX = startX
-                minX = maxX
-            }
-            if (imageHeight > viewHeight) {
-                minY = viewHeight - imageHeight.toInt()
-                maxY = 0
-            } else {
-                maxY = startY
-                minY = maxY
-            }
-            scroller.fling(startX, startY, velocityX, velocityY, minX, maxX, minY, maxY)
-            currX = startX
-            currY = startY
-        }
-
-        fun cancelFling() {
-            setState(ImageActionState.NONE)
-            scroller.forceFinished(true)
-        }
-
-        override fun run() {
-
-            // OnTouchImageViewListener is set: TouchImageView listener has been flung by user.
-            // Listener runnable updated with each frame of fling animation.
-            touchImageViewListener?.onMove()
-            if (scroller.isFinished) {
-                return
-            }
-            if (scroller.computeScrollOffset()) {
-                val newX = scroller.currX
-                val newY = scroller.currY
-                val transX = newX - currX
-                val transY = newY - currY
-                currX = newX
-                currY = newY
-                touchMatrix.postTranslate(transX.toFloat(), transY.toFloat())
-                fixTrans()
-                imageMatrix = touchMatrix
-                compatPostOnAnimation(this)
-            }
-        }
-
-    }
-
     private inner class CompatScroller(context: Context?) {
         var overScroller: OverScroller = OverScroller(context)
-        fun fling(startX: Int, startY: Int, velocityX: Int, velocityY: Int, minX: Int, maxX: Int, minY: Int, maxY: Int) {
-            overScroller.fling(startX, startY, velocityX, velocityY, minX, maxX, minY, maxY)
-        }
 
         fun forceFinished(finished: Boolean) {
             overScroller.forceFinished(finished)
