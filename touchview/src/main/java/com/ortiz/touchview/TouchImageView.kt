@@ -1,13 +1,10 @@
 package com.ortiz.touchview
 
-import android.annotation.TargetApi
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.*
 import android.graphics.drawable.Drawable
 import android.net.Uri
-import android.os.Build.VERSION
-import android.os.Build.VERSION_CODES
 import android.os.Bundle
 import android.os.Parcelable
 import android.util.AttributeSet
@@ -765,11 +762,6 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
         this.imageActionState = imageActionState
     }
 
-    @Deprecated("")
-    fun canScrollHorizontallyFroyo(direction: Int): Boolean {
-        return canScrollHorizontally(direction)
-    }
-
     override fun canScrollHorizontally(direction: Int): Boolean {
         touchMatrix.getValues(floatMatrix)
         val x = floatMatrix[Matrix.MTRANS_X]
@@ -814,7 +806,7 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
                     val maxZoomScale = if (doubleTapScale == 0f) maxScale else doubleTapScale
                     val targetZoom = if (currentZoom == minScale) maxZoomScale else minScale
                     val doubleTap = DoubleTapZoom(targetZoom, e.x, e.y, false)
-                    compatPostOnAnimation(doubleTap)
+                    postOnAnimation(doubleTap)
                     consumed = true
                 }
             }
@@ -833,7 +825,7 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
     private inner class PrivateOnTouchListener : OnTouchListener {
 
         // Remember last point position for dragging
-        private val last = PointF()
+        private val last = mutableListOf<PointF>()
         override fun onTouch(v: View, event: MotionEvent): Boolean {
             if (drawable == null) {
                 setState(ImageActionState.NONE)
@@ -843,21 +835,42 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
                 scaleDetector.onTouchEvent(event)
             }
             gestureDetector.onTouchEvent(event)
-            val curr = PointF(event.x, event.y)
+            val curr = PointF(event.getX(event.actionIndex), event.getY(event.actionIndex))
 
-            if (event.pointerCount >= 2) {
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_POINTER_DOWN -> last.set(curr)
-                    MotionEvent.ACTION_MOVE -> {
-                        val deltaX = curr.x - last.x
-                        val deltaY = curr.y - last.y
-                        val fixTransX = getFixDragTrans(deltaX, viewWidth.toFloat(), imageWidth)
-                        val fixTransY = getFixDragTrans(deltaY, viewHeight.toFloat(), imageHeight)
-                        touchMatrix.postTranslate(fixTransX, fixTransY)
-                        fixTrans()
-                        last[curr.x] = curr.y
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> last.add(event.actionIndex, curr)
+                MotionEvent.ACTION_POINTER_DOWN -> {
+                    last.add(event.actionIndex, curr)
+                    setState(ImageActionState.DRAG_OR_ZOOM)
+                }
+                MotionEvent.ACTION_MOVE -> if (imageActionState == ImageActionState.DRAG_OR_ZOOM) {
+                    val deltaX = curr.x - last[0].x
+                    val deltaY = curr.y - last[0].y
+                    val fixTransX = getFixDragTrans(deltaX, viewWidth.toFloat(), imageWidth)
+                    val fixTransY = getFixDragTrans(deltaY, viewHeight.toFloat(), imageHeight)
+                    touchMatrix.postTranslate(fixTransX, fixTransY)
+                    fixTrans()
+                    last.forEachIndexed { index, pointF ->
+                        pointF.set(PointF(event.getX(index), event.getY(index)))
                     }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> setState(ImageActionState.NONE)
+                }
+                MotionEvent.ACTION_POINTER_UP -> last.removeAt(event.actionIndex)
+                MotionEvent.ACTION_UP -> {
+                    last.removeAt(event.actionIndex)
+                    setState(ImageActionState.NONE)
+                    var animateToZoomBoundary = false
+                    var targetZoom: Float = currentZoom
+                    if (currentZoom > maxScale) {
+                        targetZoom = maxScale
+                        animateToZoomBoundary = true
+                    } else if (currentZoom < minScale) {
+                        targetZoom = minScale
+                        animateToZoomBoundary = true
+                    }
+                    if (animateToZoomBoundary) {
+                        val doubleTap = DoubleTapZoom(targetZoom, (viewWidth / 2).toFloat(), (viewHeight / 2).toFloat(), true)
+                        postOnAnimation(doubleTap)
+                    }
                 }
             }
 
@@ -883,35 +896,12 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
      * ScaleListener detects user two finger scaling and scales image.
      */
     private inner class ScaleListener : SimpleOnScaleGestureListener() {
-        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-            setState(ImageActionState.ZOOM)
-            return true
-        }
-
         override fun onScale(detector: ScaleGestureDetector): Boolean {
             scaleImage(detector.scaleFactor.toDouble(), detector.focusX, detector.focusY, true)
 
             // OnTouchImageViewListener is set: TouchImageView pinch zoomed by user.
             touchImageViewListener?.onMove()
             return true
-        }
-
-        override fun onScaleEnd(detector: ScaleGestureDetector) {
-            super.onScaleEnd(detector)
-            setState(ImageActionState.NONE)
-            var animateToZoomBoundary = false
-            var targetZoom: Float = currentZoom
-            if (currentZoom > maxScale) {
-                targetZoom = maxScale
-                animateToZoomBoundary = true
-            } else if (currentZoom < minScale) {
-                targetZoom = minScale
-                animateToZoomBoundary = true
-            }
-            if (animateToZoomBoundary) {
-                val doubleTap = DoubleTapZoom(targetZoom, (viewWidth / 2).toFloat(), (viewHeight / 2).toFloat(), true)
-                compatPostOnAnimation(doubleTap)
-            }
         }
     }
 
@@ -969,7 +959,7 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
             touchImageViewListener?.onMove()
             if (t < 1f) {
                 // We haven't finished zooming
-                compatPostOnAnimation(this)
+                postOnAnimation(this)
             } else {
                 // Finished zooming
                 setState(ImageActionState.NONE)
@@ -1090,15 +1080,6 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
 
     }
 
-    @TargetApi(VERSION_CODES.JELLY_BEAN)
-    private fun compatPostOnAnimation(runnable: Runnable) {
-        if (VERSION.SDK_INT >= VERSION_CODES.JELLY_BEAN) {
-            postOnAnimation(runnable)
-        } else {
-            postDelayed(runnable, 1000 / 60.toLong())
-        }
-    }
-
     /**
      * Set zoom to the specified scale with a linearly interpolated animation. Image will be
      * centered around the point (focusX, focusY). These floats range from 0 to 1 and denote the
@@ -1111,7 +1092,7 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
 
     fun setZoomAnimated(scale: Float, focusX: Float, focusY: Float, zoomTimeMs: Int) {
         val animation = AnimatedZoom(scale, PointF(focusX, focusY), zoomTimeMs)
-        compatPostOnAnimation(animation)
+        postOnAnimation(animation)
     }
 
     /**
@@ -1125,13 +1106,13 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
     fun setZoomAnimated(scale: Float, focusX: Float, focusY: Float, zoomTimeMs: Int, listener: OnZoomFinishedListener?) {
         val animation = AnimatedZoom(scale, PointF(focusX, focusY), zoomTimeMs)
         animation.setListener(listener)
-        compatPostOnAnimation(animation)
+        postOnAnimation(animation)
     }
 
     fun setZoomAnimated(scale: Float, focusX: Float, focusY: Float, listener: OnZoomFinishedListener?) {
         val animation = AnimatedZoom(scale, PointF(focusX, focusY), DEFAULT_ZOOM_TIME)
         animation.setListener(listener)
-        compatPostOnAnimation(animation)
+        postOnAnimation(animation)
     }
 
     /**
@@ -1170,7 +1151,7 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
             setZoom(nextZoom, nextX, nextY)
             if (t < 1f) {
                 // We haven't finished zooming
-                compatPostOnAnimation(this)
+                postOnAnimation(this)
             } else {
                 // Finished zooming
                 setState(ImageActionState.NONE)
