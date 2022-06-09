@@ -843,13 +843,15 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
                     last.add(event.actionIndex, curr)
                     setState(ImageActionState.DRAG_OR_ZOOM)
                 }
-                MotionEvent.ACTION_MOVE -> if (imageActionState == ImageActionState.DRAG_OR_ZOOM) {
-                    val deltaX = curr.x - last[0].x
-                    val deltaY = curr.y - last[0].y
-                    val fixTransX = getFixDragTrans(deltaX, viewWidth.toFloat(), imageWidth)
-                    val fixTransY = getFixDragTrans(deltaY, viewHeight.toFloat(), imageHeight)
-                    touchMatrix.postTranslate(fixTransX, fixTransY)
-                    fixTrans()
+                MotionEvent.ACTION_MOVE -> {
+                    if (imageActionState == ImageActionState.DRAG_OR_ZOOM) {
+                        val deltaX = curr.x - last[0].x
+                        val deltaY = curr.y - last[0].y
+                        val fixTransX = getFixDragTrans(deltaX, viewWidth.toFloat(), imageWidth)
+                        val fixTransY = getFixDragTrans(deltaY, viewHeight.toFloat(), imageHeight)
+                        touchMatrix.postTranslate(fixTransX, fixTransY)
+                        fixTrans()
+                    }
                     last.forEachIndexed { index, pointF ->
                         pointF.set(PointF(event.getX(index), event.getY(index)))
                     }
