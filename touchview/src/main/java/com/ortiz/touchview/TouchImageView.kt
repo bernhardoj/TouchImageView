@@ -57,6 +57,7 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
     private var maxScale = 0f
     private var superMinScale = 0f
     private var superMaxScale = 0f
+    var zoomToSuper = false
     private var floatMatrix: FloatArray
 
     /**
@@ -392,7 +393,7 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
             setScaleType(scaleType!!)
         }
         resetZoom()
-        scaleImage(scale.toDouble(), viewWidth / 2.toFloat(), viewHeight / 2.toFloat(), true)
+        scaleImage(scale.toDouble(), viewWidth / 2.toFloat(), viewHeight / 2.toFloat(), zoomToSuper)
         touchMatrix.getValues(floatMatrix)
         floatMatrix[Matrix.MTRANS_X] = (viewWidth - matchViewWidth) / 2 - focusX * (scale - 1) * matchViewWidth
         floatMatrix[Matrix.MTRANS_Y] = (viewHeight - matchViewHeight) / 2 - focusY * (scale - 1) * matchViewHeight
@@ -899,7 +900,7 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
      */
     private inner class ScaleListener : SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
-            scaleImage(detector.scaleFactor.toDouble(), detector.focusX, detector.focusY, true)
+            scaleImage(detector.scaleFactor.toDouble(), detector.focusX, detector.focusY, zoomToSuper)
 
             // OnTouchImageViewListener is set: TouchImageView pinch zoomed by user.
             touchImageViewListener?.onMove()
@@ -964,7 +965,7 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
                 postOnAnimation(this)
             } else {
                 // Finished zooming
-                setState(ImageActionState.NONE)
+                if (imageActionState == ImageActionState.ANIMATE_ZOOM) setState(ImageActionState.NONE)
             }
         }
 
