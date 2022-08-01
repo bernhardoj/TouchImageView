@@ -405,12 +405,11 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
     }
 
     /**
-     * Set zoom parameters equal to another TouchImageView. Including scale, position,
-     * and ScaleType.
+     * Set zoom parameters equal to another TouchImageView. Including scale, position and ScaleType.
      */
-    fun setZoom(img: TouchImageView) {
-        val center = img.scrollPosition
-        setZoom(img.currentZoom, center.x, center.y, img.scaleType)
+    fun setZoom(imageSource: TouchImageView) {
+        val center = imageSource.scrollPosition
+        setZoom(imageSource.currentZoom, center.x, center.y, imageSource.scaleType)
     }
 
     /**
@@ -598,6 +597,7 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
         if (drawable == null || drawable.intrinsicWidth == 0 || drawable.intrinsicHeight == 0) {
             return
         }
+        @Suppress("SENSELESS_COMPARISON")
         if (touchMatrix == null || prevMatrix == null) {
             return
         }
