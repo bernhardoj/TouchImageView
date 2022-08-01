@@ -19,6 +19,7 @@ import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.LinearInterpolator
 import android.widget.OverScroller
 import androidx.appcompat.widget.AppCompatImageView
+import java.util.Collections
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -826,7 +827,7 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
     private inner class PrivateOnTouchListener : OnTouchListener {
 
         // Remember last point position for dragging
-        private val last = mutableListOf<PointF>()
+        private val last = Collections.synchronizedList(mutableListOf<PointF>())
         override fun onTouch(v: View, event: MotionEvent): Boolean {
             if (drawable == null) {
                 setState(ImageActionState.NONE)
@@ -853,8 +854,12 @@ open class TouchImageView @JvmOverloads constructor(context: Context, attrs: Att
                         touchMatrix.postTranslate(fixTransX, fixTransY)
                         fixTrans()
                     }
-                    last.forEachIndexed { index, pointF ->
-                        pointF.set(PointF(event.getX(index), event.getY(index)))
+                    synchronized(last) {
+                        val it = last.iterator() // Must be in synchronized block
+                        while (it.hasNext()) {
+                            val pointF = it.withIndex().next()
+                            pointF.value.set(PointF(event.getX(pointF.index), event.getY(pointF.index)))
+                        }
                     }
                 }
                 MotionEvent.ACTION_POINTER_UP -> last.removeAt(event.actionIndex)
